@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solar Tracker Control</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f9;
+      text-align: center;
+    }
+    header {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 0;
+      font-size: 24px;
+    }
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      margin: 10px;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      width: 300px;
+    }
+    .slider {
+      width: 80%;
+    }
+    .switch {
+      display: inline-block;
+      position: relative;
+      width: 50px;
+      height: 24px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider-switch {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      border-radius: 24px;
+    }
+    .slider-switch:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider-switch {
+      background-color: #007bff;
+    }
+    input:checked + .slider-switch:before {
+      transform: translateX(26px);
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+  <header>Solar Tracker Control</header>
+  <div class="container">
+    <!-- Mode Switch -->
+    <div class="card">
+      <h3>Mode</h3>
+      <label class="switch">
+        <input type="checkbox" id="autoMode" onchange="toggleAutoMode()">
+        <span class="slider-switch"></span>
+      </label>
+      <p id="modeText">Manual</p>
+    </div>
+    <!-- Servo Position -->
+    <div class="card">
+      <h3>Servo Position</h3>
+      <input type="range" id="servoSlider" class="slider" min="0" max="180" oninput="updateServoPosition()" disabled>
+      <p id="servoValue">0°</p>
+    </div>
+    <!-- LDR Values -->
+    <div class="card">
+      <h3>Sensor 1 (LDR1)</h3>
+      <p id="ldr1Value">0</p>
+    </div>
+    <div class="card">
+      <h3>Sensor 2 (LDR2)</h3>
+      <p id="ldr2Value">0</p>
+    </div>
+  </div>
+
+  <script>
+    // MQTT Connection
+    const client = mqtt.connect("wss://broker.hivemq.com:8000/mqtt");
+
+    const topicLDR1 = "solar_tracking/ldr1";
+    const topicLDR2 = "solar_tracking/ldr2";
+    const topicServo = "solar_tracking/servo_position";
+    const topicAutoMode = "solar_tracking/auto_mode";
+    const topicManualMode = "solar_tracking/manual_mode";
+    const topicManualServo = "solar_tracking/manual_servo_position";
+
+    client.on("connect", () => {
+      console.log("Connected to MQTT broker");
+      client.subscribe([topicLDR1, topicLDR2, topicServo]);
+    });
+
+    client.on("message", (topic, message) => {
+      const value = message.toString();
+      if (topic === topicLDR1) {
+        document.getElementById("ldr1Value").textContent = value;
+      } else if (topic === topicLDR2) {
+        document.getElementById("ldr2Value").textContent = value;
+      } else if (topic === topicServo) {
+        document.getElementById("servoValue").textContent = `${value}°`;
+      }
+    });
+
+    function toggleAutoMode() {
+      const isChecked = document.getElementById("autoMode").checked;
+      const modeText = isChecked ? "Auto" : "Manual";
+      document.getElementById("modeText").textContent = modeText;
+      document.getElementById("servoSlider").disabled = isChecked;
+      client.publish(topicAutoMode, isChecked.toString());
+      client.publish(topicManualMode, (!isChecked).toString());
+    }
+
+    function updateServoPosition() {
+      const position = document.getElementById("servoSlider").value;
+      document.getElementById("servoValue").textContent = `${position}°`;
+      client.publish(topicManualServo, position);
+    }
+  </script>
+</body>
+</html>
